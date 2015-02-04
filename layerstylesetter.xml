@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  <layer>
+    <defaultStyle>
+      <name>popdensity_asyht</name>
+      <atom:link xmlns:atom="http://www.w3.org/2005/Atom" rel="alternate" href="http://geoserver.hel.fi/geoserver/rest/styles/popdensity_asyht.xml" type="application/xml"/>
+    </defaultStyle>
+    <styles class="linked-hash-set">
+      <style>
+        <name>popdensity_aggr13_17</name>
+        <atom:link xmlns:atom="http://www.w3.org/2005/Atom" rel="alternate" href="http://geoserver.hel.fi/geoserver/rest/styles/popdensity_aggr13_17.xml" type="application/xml"/>
+      </style>
+      <style>
+        <name>popdensity_aggr18_29</name>
+        <atom:link xmlns:atom="http://www.w3.org/2005/Atom" rel="alternate" href="http://geoserver.hel.fi/geoserver/rest/styles/popdensity_aggr18_29.xml" type="application/xml"/>
+      </style>
+      <style>
+        <name>popdensity_asyht</name>
+        <atom:link xmlns:atom="http://www.w3.org/2005/Atom" rel="alternate" href="http://geoserver.hel.fi/geoserver/rest/styles/popdensity_asyht.xml" type="application/xml"/>
+      </style>
+      <style>
+        <name>popdensity_aggr7_12</name>
+        <atom:link xmlns:atom="http://www.w3.org/2005/Atom" rel="alternate" href="http://geoserver.hel.fi/geoserver/rest/styles/popdensity_aggr7_12.xml" type="application/xml"/>
+      </style>
+      <style>
+        <name>popdensity_aggr0_6</name>
+        <atom:link xmlns:atom="http://www.w3.org/2005/Atom" rel="alternate" href="http://geoserver.hel.fi/geoserver/rest/styles/popdensity_aggr0_6.xml" type="application/xml"/>
+      </style>
+      <style>
+        <name>popdensity_aggr30_64</name>
+        <atom:link xmlns:atom="http://www.w3.org/2005/Atom" rel="alternate" href="http://geoserver.hel.fi/geoserver/rest/styles/popdensity_aggr30_64.xml" type="application/xml"/>
+      </style>
+      <style>
+        <name>popdensity_aggr64_</name>
+        <atom:link xmlns:atom="http://www.w3.org/2005/Atom" rel="alternate" href="http://geoserver.hel.fi/geoserver/rest/styles/popdensity_aggr64_.xml" type="application/xml"/>
+      </style>
+      <style>
+        <name>popdensity_ruots</name>
+        <atom:link xmlns:atom="http://www.w3.org/2005/Atom" rel="alternate" href="http://geoserver.hel.fi/geoserver/rest/styles/popdensity_ruots.xml" type="application/xml"/>
+      </style>
+    </styles>
+  </layer>

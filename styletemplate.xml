@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+   <StyledLayerDescriptor version="1.0.0"
+       xsi:schemaLocation="http://www.opengis.net/sld StyledLayerDescriptor.xsd"
+       xmlns="http://www.opengis.net/sld"
+       xmlns:ogc="http://www.opengis.net/ogc"
+       xmlns:xlink="http://www.w3.org/1999/xlink"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+     <NamedLayer>
+       <Name>Heatmap</Name>
+       <UserStyle>
+         <Title>%(stratum)s</Title>
+         <Abstract>A heatmap surface showing population density</Abstract>
+         <FeatureTypeStyle>
+          <Rule>
+            <RasterSymbolizer>
+              <Opacity>0.6</Opacity>
+              
+              <ChannelSelection>
+                <GrayChannel>
+                    <SourceChannelName>%(band_n)d</SourceChannelName>
+                </GrayChannel>
+            </ChannelSelection>
+              
+              <ColorMap type="ramp" >
+                <ColorMapEntry color="#000000" quantity="0" label="nodata" opacity="0.0"/>
+
+                <ColorMapEntry color="#FF0000" quantity="%(lowlimit).8f" label="%(lowlimit).2f"/>
+                <ColorMapEntry color="#FFFF00" quantity="%(midlimit)f" label="%(midlimit).2f" />
+                <ColorMapEntry color="#FFFFFF" quantity="%(highlimit)f" label="%(highlimit).2f" />
+              </ColorMap>
+            </RasterSymbolizer>
+           </Rule>
+         </FeatureTypeStyle>
+       </UserStyle>
+     </NamedLayer>
+    </StyledLayerDescriptor>
