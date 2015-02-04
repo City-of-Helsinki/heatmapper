@@ -104,7 +104,7 @@ def data2heatmap2multibandtif(cutoff, infile, epsg='3879', binsize=10, windowsca
 
         # draw .png pyplot figures for easy previewing of of the geotiff
         # plt.figure()
-        # smoothed = gaussian_filter(preprocessed, bandwidth_sigma, truncate=truncate)
+        smoothed = gaussian_filter(preprocessed, bandwidth_sigma, truncate=truncate)
         # plt.imshow(smoothed, origin='lower')
         # plt.colorbar()
         # fname = '_binsize'+str(binsize)+'_cutoff'+str(cutoff)+'_bw'+str(bandwidth_sigma)+'_windowscale'+str(windowscale)+'_'+field+'.png'
@@ -151,15 +151,15 @@ def retain_relevant_fields(data):
 
 if __name__ == '__main__':
     
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 4:
         print 'Usage: python heatmapper.py source_srs'
         sys.exit(0)
 
     # inpath = sys.argv[1]
     # outpath = sys.argv[2]
     epsg = sys.argv[1]
-    binsize = sys.argv[2]
-    windowscale = sys.argv[3] # for visual purposes
+    binsize = int(sys.argv[2])
+    windowscale = int(sys.argv[3]) # for visual purposes
 
     #read data
     infiles = [f for f in os.listdir('.') if 'csv' in  f.split('.')[-1]]
