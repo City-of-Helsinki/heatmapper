@@ -1,6 +1,8 @@
 # heatmapper
 
-A set of scripts for turning a dataset containing x- and y-coordinates and their respective weights/frequencies into a heatmap and publishing it on a geoserver. Python to handle reading the data & constructing the heatmap GeoTiffs and bash for uploading the file to and communicating with geoserver via it's REST interface.
+Scripts for turning a dataset containing x- and y-coordinates and their respective weights/frequencies into a heatmap and publishing it on a geoserver. Python to handle reading the data & constructing the heatmap GeoTiffs and bash for uploading the file to and communicating with geoserver via it's REST interface.
+
+Use by copying the data-csv into the same directory and then going `export USER=your_geoserver_username; export PASSWORD=your_geoserver_password; sh publisher.sh`.
 
 Original purpose is to visualize population density using a data set where each datum is a building with coordinates and number of residents living in it.
 
