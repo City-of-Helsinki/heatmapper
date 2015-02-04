@@ -22,7 +22,7 @@
             </ChannelSelection>
               
               <ColorMap type="ramp" >
-                <ColorMapEntry color="#000000" quantity="0" label="nodata" opacity="0.0"/>
+                <ColorMapEntry color="#000000" quantity="0" label="nodata" opacity="0.2"/>
 
                 <ColorMapEntry color="#FF0000" quantity="%(lowlimit).8f" label="%(lowlimit).2f"/>
                 <ColorMapEntry color="#FFFF00" quantity="%(midlimit)f" label="%(midlimit).2f" />

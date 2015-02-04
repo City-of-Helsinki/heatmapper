@@ -1,0 +1,6 @@
+*.csv
+*.sas7bdat
+run.sh
+output_tiffs
+figs
+sld

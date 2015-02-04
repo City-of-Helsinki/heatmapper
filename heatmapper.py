@@ -1,130 +1,13 @@
-import os
+import os, sys
+import ConfigParser #TODO lol
 
 from osgeo import gdal
-from osgeo import gdal_array
 from osgeo import osr
 
 import matplotlib.pyplot as plt
-from matplotlib import cm
 import numpy as np
 import numpy.lib.recfunctions as rf
 from scipy.ndimage.filters import gaussian_filter
-import sys
-
-# quite a senseless encapsulation, done originally for parallelization purposes
-def data2heatmap2multibandtif(cutoff, infile, epsg='3879', binsize=10, windowscale=1):
-    
-    try:
-        styletemplate = open('styletemplate.xml').read()
-    except e:
-        print "need to have the style template named styletemplate.xml in the same folder"
-        sys.exit(0)
-
-    data = np.recfromcsv(infile, delimiter=',')
-    #construct array with only the fields we want
-    data = retain_relevant_fields(data)
-
-    #prune invalid values
-    data = data[data['nkoord'] != -1]
-
-    #take these into account for lattice transformation
-    min_nkoord = np.min(data['nkoord'])
-    max_nkoord = np.max(data['nkoord'])
-    min_ekoord = np.min(data['ekoord'])
-    max_ekoord = np.max(data['ekoord'])
-    pextent = np.arange(min_nkoord, max_nkoord)
-    iextent = np.arange(min_ekoord, max_ekoord)
-
-    #output image dimensions & resolutions
-    nrows, ncols = (pextent.shape[0]/binsize, iextent.shape[0]/binsize)
-    nres = (max_nkoord-min_nkoord)/float(nrows)
-    eres = (max_ekoord-min_ekoord)/float(ncols)
-    #...which is basically the geotransform
-    geotransform = [min_ekoord, eres, 0, max_nkoord, 0, -nres]
-    print '[min_ekoord, eres, 0, max_nkoord, 0, -nres] -> ', geotransform
-
-    #===============================================
-    #GENERATE HEATMAPS AND STORE THEM IN THE OUTFILE
-    #===============================================
-    # iterate through all strata, compute heatmap and write as a band in the image file (also a pyplot image)
-
-    datakeys = [d for d in data.dtype.names if d not in ['nkoord', 'ekoord']]
-    print 'Writing a layer for the following keys: ', datakeys
-    
-    #create output file and set parameters
-    outfile = infile.split('.')[0]
-
-    # outputraster = gdal.GetDriverByName('GTiff').Create('./output_tiffs/cutoff'+str(cutoff)+'_binsize'+str(binsize)+'_windowscale'+str(windowscale)+'_'+outfile+'.tif', ncols+1, nrows+1, len(datakeys), gdal.GDT_Float32)
-    outputraster = gdal.GetDriverByName('GTiff').Create('./output_tiffs/'+outfile+'.tif', ncols+1, nrows+1, len(datakeys), gdal.GDT_Float32)
-    outputraster.SetGeoTransform(geotransform)
-    srs = osr.SpatialReference()
-    # ETRS89-GK25FIN maps to 3879
-    # before 2012 everything is in KKJ2, maps to 2392
-    srs.ImportFromEPSG(int(epsg))
-    # source: http://www.maanmittauslaitos.fi/sites/default/files/tiedostolataukset/kartat/koordinaatit/epsg_koodit.pdf
-    outputraster.SetProjection( srs.ExportToWkt() )
-
-    # strata_fieldnames = ['asyht']
-    for i,field in enumerate(datakeys):
-
-        #build 2d lattice to cumulate the frequencies on (even though every row is unique to that position in the lattice)
-        #NB! this is indexed by [0,4xxx] instead of the actual coordinate
-        lattice = np.zeros(((pextent.shape[0]/binsize)+1, (iextent.shape[0]/binsize)+1))
-
-        #cumulate
-        # print 'cumulating frequencies'
-        for building in data:
-            lattice[(building['nkoord']-min_nkoord)/binsize][(building['ekoord']-min_ekoord)/binsize] = building[field]
-        #now we have a "sparse" (i.e. most values are 0) 2d lattice where each datum (x,y) has value that represents the frequency of people living in that coordinate's building
-        
-        #cut off elements where population in a house is below threshold
-        highpassed = np.copy(lattice)
-        highpassed[highpassed < cutoff] = 0
-
-        #what a monster. add up to +-10% of the value (rounded up) as noise to each element, and then round down
-        noised = np.array([np.floor(datum + np.random.uniform(-(np.ceil(datum*0.1)),np.ceil(datum*0.1))) for datum in highpassed])
-
-        #FUNCTION GIVES SKEWED RESULTS because of ndi.gaussian_filter's truncation algorithm. it always adds one unit after truncation to make the function nicely trail to 0
-        # this skews results quite quickly ESPECIALLY with large bins because the one unit is squared when computing the area
-        #...
-
-        # so it would go something like this:
-        # (sigma * truncate) + 1 = r_window
-        # sigma * truncate = r_window - 1
-        # sigma = (r_window - 1) / truncate
-
-        scale = windowscale*100/binsize
-        r_window = np.sqrt(scale*scale / np.pi)
-        #parameter for controlling when the filter is truncated, and thus effects our window size. default is 4, but just explicating it here
-        truncate = 4.0
-        # bandwidth_sigma = r_window / truncate
-        bandwidth_sigma = (r_window - 1) / truncate
-        print 'smoothing: gaussian with sigma ', bandwidth_sigma
-        preprocessed = noised #which preprocessing stages were done
-
-        # draw .png pyplot figures for easy previewing of of the geotiff
-        # plt.figure()
-        smoothed = gaussian_filter(preprocessed, bandwidth_sigma, truncate=truncate)
-        # plt.imshow(smoothed, origin='lower')
-        # plt.colorbar()
-        # fname = '_binsize'+str(binsize)+'_cutoff'+str(cutoff)+'_bw'+str(bandwidth_sigma)+'_windowscale'+str(windowscale)+'_'+field+'.png'
-        # plt.savefig('./figs/windowsize_controlled_geotiff'+fname)
-        # plt.close('all')
-
-        print "writing " + field + " to band ",i+1
-        outputraster.GetRasterBand(i+1).WriteArray(np.flipud(smoothed)) #flip updown
-
-        #write corresponding style file
-        with open('./sld/popdensity_%s.xml' % (field), 'w') as f:
-            lowlimit = np.percentile(smoothed[smoothed > 0], 2)
-            highlimit = np.percentile(smoothed[smoothed > 0], 98)
-            midlimit = lowlimit + ((highlimit - lowlimit) * 0.75) #we want the midlimit to be betwee min & max. 
-            # midlimit = np.mean(smoothed[smoothed > 0])
-            print lowlimit, midlimit, highlimit
-            f.write(styletemplate % {'stratum':field, 'band_n':(i+1), 'minlimit':np.min(smoothed[smoothed > 0]), 'lowlimit':lowlimit, 'midlimit':midlimit, 'highlimit':highlimit})
-
-
-    outputraster = None
 
 def retain_relevant_fields(data):
     #TODO read these from a conf file
@@ -148,21 +31,132 @@ def retain_relevant_fields(data):
     fields2drop = [d for d in data.dtype.names if d not in aggregate_fields.keys()]
     return rf.rec_drop_fields(augmented_data, fields2drop)
 
+def read_file_prune_fields_clean_values(infile_name, x_name, y_name):
+    data = np.recfromcsv(infile_name, delimiter=',')
+    data = retain_relevant_fields(data)
+    data = data[data[y_name] != -1] #this takes care of the garbage rows
+    return data[y_name], data[x_name], rf.rec_drop_fields(data, [y_name, x_name])
+
+def compute_geotransform(x, y, binsize=1):
+    #take these into account for lattice transformation
+    min_y = np.min(y)
+    max_y = np.max(y)
+    min_x = np.min(x)
+    max_x = np.max(x)
+    pextent = max_y - min_y
+    iextent = max_x - min_x
+
+    #output raster image dimensions & resolutions
+    nrows, ncols = (pextent/binsize, iextent/binsize)
+    nres = (max_y-min_y)/float(nrows)
+    eres = (max_x-min_x)/float(ncols)
+    #...which is basically the geotransform
+    geotransform = [min_x, eres, 0, max_y, 0, -nres]
+
+    return ncols, nrows, geotransform
+
+def createRaster(outfilename, nrows, ncols, geotransform, EPSG, n_bands):
+    outputraster = gdal.GetDriverByName('GTiff').Create('./output_tiffs/'+outfilename+'.tif', ncols+1, nrows+1, n_bands, gdal.GDT_Float32)
+    outputraster.SetGeoTransform(geotransform)
+    srs = osr.SpatialReference()
+    # ETRS89-GK25FIN maps to 3879
+    # before 2012 everything is in KKJ2, maps to 2392
+    srs.ImportFromEPSG(int(epsg))
+    # source: http://www.maanmittauslaitos.fi/sites/default/files/tiedostolataukset/kartat/koordinaatit/epsg_koodit.pdf
+    outputraster.SetProjection( srs.ExportToWkt() )
+    return outputraster
+
+def heatmap(x, y, weights, nrows, ncols, cutoff=0, noise=0.0, binsize=1, windowscale=1, windowarea_squareroot=100, output_plots=True, fieldname=None):
+    '''
+    Generates a lattice and adds weights[i] to coordinate ((x/binsize)[i], (y/binsize)[i]). Reverts all cell with value < cutoff to 0 and adds noise to the freq at each cell.
+    Then generates the heatmap by smoothing with a gaussian kernel which has area windowarea_squareroot(default=100)**2 coordinate units.
+    Binsize affects this, as we need the window area to be defined in terms of the original coordinate units.
+
+    E.g. we expect the x and y to correspond to meters and want a kernel with an area of 100m*100m (i.e. 1ha). However, a lattice where each cell is 1m*1m is too fine grained,
+    so we can set binsize=10, meaning that each cell represents 10m*10m. This way we will still be able to make sure that the area of the kernel window is windowarea_squareroot**2
+    regardless of the "size" of the cells in the lattice where the weights are aggregated.
+    '''
+    lattice = np.zeros((nrows+1, ncols+1))
+    for i,freq in enumerate(weights):
+        ycell = (y[i]-np.min(y)) / binsize
+        xcell = (x[i]-np.min(x)) / binsize
+        # print ycell, xcell
+        lattice[ycell][xcell] = freq
+
+    highpassed = np.copy(lattice)
+    highpassed[highpassed < cutoff] = 0
+
+    #what a monster. for each element: add or subtract noise that's up to (noise*100)% of the value. 0 adds nothing, 0.1 adds 10%
+    noised = np.array([np.floor(datum + np.random.uniform(-(np.ceil(datum*noise)),np.ceil(datum*noise))) for datum in highpassed])
+
+    #FUNCTION GIVES SKEWED RESULTS because of ndi.gaussian_filter's truncation algorithm. it always adds one unit after truncation to make the function nicely trail to 0
+    # this skews results quite quickly ESPECIALLY with large bins because the one unit is squared when computing the area
+    #...
+    # so it would go something like this:
+    # (sigma * truncate) + 1 = r_window
+    # sigma = (r_window - 1) / truncate
+
+    scale = windowscale*windowarea_squareroot/binsize
+    r_window = np.sqrt(scale*scale / np.pi)
+    #parameter for controlling when the filter is truncated, and thus effects our window size. default is 4, but just explicating it here
+    truncate = 4.0
+    # bandwidth_sigma = r_window / truncate
+    bandwidth_sigma = (r_window - 1) / truncate
+
+    smoothed = gaussian_filter(noised, bandwidth_sigma, truncate=truncate)
+
+    if output_plots:
+        plt.figure()
+        plt.imshow(smoothed, origin='lower')
+        plt.colorbar()
+        fname = '_binsize'+str(binsize)+'_cutoff'+str(cutoff)+'_bw'+str(bandwidth_sigma)+'_windowscale'+str(windowscale)+'_'+str(fieldname)+'.png'
+        plt.savefig('./figs/'+fname)
+        plt.close('all')
+
+    return smoothed
 
 if __name__ == '__main__':
     
     if len(sys.argv) != 4:
-        print 'Usage: python heatmapper.py source_srs'
+        print 'Usage: python heatmapper.py source_srs binsize windowscale'
         sys.exit(0)
 
-    # inpath = sys.argv[1]
-    # outpath = sys.argv[2]
+    # Check requisite xml existence
+    try:
+        styletemplate = open('styletemplate.xml').read()
+    except e:
+        print "need to have the style template named styletemplate.xml in the same folder"
+        sys.exit(1)
+
     epsg = sys.argv[1]
     binsize = int(sys.argv[2])
     windowscale = int(sys.argv[3]) # for visual purposes
 
-    #read data
+    # do the stuff for all csv-files in this folder
     infiles = [f for f in os.listdir('.') if 'csv' in  f.split('.')[-1]]
-
     for infile_name in infiles[::-1]: #reverse to process latest file last
-        data2heatmap2multibandtif(5, infile_name, epsg, binsize=binsize, windowscale=windowscale)
+        print 'processing file '+infile_name
+        # discard all those sensitive and useless columns
+        yarr, xarr, datarec = read_file_prune_fields_clean_values(infile_name, 'ekoord', 'nkoord')
+
+        # get some simple parameters
+        ncols, nrows, geotransform = compute_geotransform(xarr, yarr, binsize)
+
+        outfilename = infile_name.split('.')[0]
+        raster = createRaster(outfilename, nrows, ncols, geotransform, epsg, len(datarec.dtype.names))
+
+        # for all columns we have left
+        for i,field in enumerate(datarec.dtype.names):
+            # compute heatmap and save it
+            heatmap_lattice = heatmap(xarr, yarr, datarec[field], nrows, ncols, cutoff=5, noise=0.1, binsize=binsize, windowscale=windowscale, windowarea_squareroot=100) #array like
+            raster.GetRasterBand(i+1).WriteArray(np.flipud(heatmap_lattice))
+
+            # save corresponding style file
+            with open('./sld/popdensity_%s.xml' % (field), 'w') as f:
+                lowlimit = np.percentile(heatmap_lattice[heatmap_lattice > 0], 2)
+                # lowlimit = np.min(heatmap_lattice[heatmap_lattice > 0])
+                highlimit = np.percentile(heatmap_lattice[heatmap_lattice > 0], 98)
+                midlimit = lowlimit + ((highlimit - lowlimit) * 0.75) #we want the midlimit to be between min & max.
+
+                print 'column '+field+', low, mid, high:', lowlimit, midlimit, highlimit
+                f.write(styletemplate % {'stratum':field, 'band_n':(i+1), 'minlimit':np.min(heatmap_lattice[heatmap_lattice > 0]), 'lowlimit':lowlimit, 'midlimit':midlimit, 'highlimit':highlimit})
