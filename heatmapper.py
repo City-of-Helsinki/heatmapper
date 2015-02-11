@@ -4,7 +4,6 @@ import ConfigParser #TODO lol
 from osgeo import gdal
 from osgeo import osr
 
-import matplotlib.pyplot as plt
 import numpy as np
 import numpy.lib.recfunctions as rf
 from scipy.ndimage.filters import gaussian_filter
@@ -66,7 +65,7 @@ def createRaster(outfilename, nrows, ncols, geotransform, EPSG, n_bands):
     outputraster.SetProjection( srs.ExportToWkt() )
     return outputraster
 
-def heatmap(x, y, weights, nrows, ncols, cutoff=0, noise=0.0, binsize=1, windowscale=1, windowarea_squareroot=100, output_plots=True, fieldname=None):
+def heatmap(x, y, weights, nrows, ncols, cutoff=0, noise=0.0, binsize=1, windowscale=1, windowarea_squareroot=100):
     '''
     Generates a lattice and adds weights[i] to coordinate ((x/binsize)[i], (y/binsize)[i]). Reverts all cell with value < cutoff to 0 and adds noise to the freq at each cell.
     Then generates the heatmap by smoothing with a gaussian kernel which has area windowarea_squareroot(default=100)**2 coordinate units.
@@ -105,14 +104,6 @@ def heatmap(x, y, weights, nrows, ncols, cutoff=0, noise=0.0, binsize=1, windows
 
     smoothed = gaussian_filter(noised, bandwidth_sigma, truncate=truncate)
 
-    if output_plots:
-        plt.figure()
-        plt.imshow(smoothed, origin='lower')
-        plt.colorbar()
-        fname = '_binsize'+str(binsize)+'_cutoff'+str(cutoff)+'_bw'+str(bandwidth_sigma)+'_windowscale'+str(windowscale)+'_'+str(fieldname)+'.png'
-        plt.savefig('./figs/'+fname)
-        plt.close('all')
-
     return smoothed
 
 if __name__ == '__main__':
@@ -148,15 +139,19 @@ if __name__ == '__main__':
         # for all columns we have left
         for i,field in enumerate(datarec.dtype.names):
             # compute heatmap and save it
-            heatmap_lattice = heatmap(xarr, yarr, datarec[field], nrows, ncols, cutoff=5, noise=0.1, binsize=binsize, windowscale=windowscale, windowarea_squareroot=100) #array like
+            data = datarec[field]
+            heatmap_lattice = heatmap(xarr, yarr, data, nrows, ncols, cutoff=5, noise=0.1, binsize=binsize, windowscale=windowscale, windowarea_squareroot=100) #array like
             raster.GetRasterBand(i+1).WriteArray(np.flipud(heatmap_lattice))
 
             # save corresponding style file
             with open('./sld/popdensity_%s.xml' % (field), 'w') as f:
-                lowlimit = np.percentile(heatmap_lattice[heatmap_lattice > 0], 2)
+                lowlimit1 = np.percentile(heatmap_lattice[heatmap_lattice > 0], 1)
+                lowlimit2 = np.percentile(heatmap_lattice[heatmap_lattice > 0], 2)
+                lowlimit3 = np.percentile(heatmap_lattice[heatmap_lattice > 0], 3)
+                lowlimit4 = np.percentile(heatmap_lattice[heatmap_lattice > 0], 10)
                 # lowlimit = np.min(heatmap_lattice[heatmap_lattice > 0])
-                highlimit = np.percentile(heatmap_lattice[heatmap_lattice > 0], 98)
-                midlimit = lowlimit + ((highlimit - lowlimit) * 0.75) #we want the midlimit to be between min & max.
+                highlimit = np.percentile(heatmap_lattice[heatmap_lattice > 0], 95)
+                midlimit = lowlimit4 + ((highlimit - lowlimit4) * 0.75) #we want the midlimit to be between min & max.
 
-                print 'column '+field+', low, mid, high:', lowlimit, midlimit, highlimit
-                f.write(styletemplate % {'stratum':field, 'band_n':(i+1), 'minlimit':np.min(heatmap_lattice[heatmap_lattice > 0]), 'lowlimit':lowlimit, 'midlimit':midlimit, 'highlimit':highlimit})
+                print 'column '+field+', low4:', lowlimit4,' mid:', midlimit,' high:', highlimit
+                f.write(styletemplate % {'stratum':field, 'band_n':(i+1), 'minlimit':np.min(heatmap_lattice[heatmap_lattice > 0]), 'lowlimit1':lowlimit1, 'lowlimit2':lowlimit2, 'lowlimit3':lowlimit3, 'lowlimit4':lowlimit4, 'midlimit':midlimit, 'highlimit':highlimit})
